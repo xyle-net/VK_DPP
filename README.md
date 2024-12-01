@@ -14,3 +14,5 @@
 - Мамонтов Никита Андреевич
 - Федорова Екатерина Васильевна
 - Яметдинов Максим Русланович
+
+`[ссылка на паспорт](https://docs.google.com/document/d/1nA2f-hRUEZueK7Li4eRWgb3SEfK7WIBUUKadeRu4m5Q/edit?tab=t.0)`
