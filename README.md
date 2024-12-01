@@ -16,4 +16,3 @@
 - Яметдинов Максим Русланович
 
 [ссылка на паспорт](https://docs.google.com/document/d/1nA2f-hRUEZueK7Li4eRWgb3SEfK7WIBUUKadeRu4m5Q/edit?tab=t.0)
-("C:\Users\mashu\OneDrive\Документы\маи\3 сем\архитектура.jpg")
