@@ -19,7 +19,7 @@ export default function Home() {
 
             {/* Основное содержимое по центру */}
             <div className="flex-grow flex flex-col items-center justify-center p-4 space-y-4">
-                <h1 className="text-6xl font-bold text-white">Mbl</h1>
+                <h1 className="text-6xl font-bold text-white">MЫ</h1>
                 <p className="text-2xl text-white">СДЕЛАЕМ ТВОЙ ОТЧЕТ</p>
             </div>
         </div>
