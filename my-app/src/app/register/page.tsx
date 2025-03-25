@@ -1,15 +1,53 @@
+"use client"
+
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import Link from "next/link"
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form"
+
+const formSchema = z.object({
+    name: z.string().min(2, { message: "Имя должно содержать минимум 2 символа" }),
+    surname: z.string().min(2, { message: "Фамилия должна содержать минимум 2 символа" }),
+    email: z.string().email({ message: "Введите корректный email" }),
+    password: z.string().min(6, { message: "Пароль должен содержать минимум 6 символов" }),
+    confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+    message: "Пароли не совпадают",
+    path: ["confirmPassword"],
+})
 
 export default function RegisterPage() {
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            name: "",
+            surname: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+        },
+    })
+
+    const onSubmit = (values: z.infer<typeof formSchema>) => {
+        console.log("Данные формы:", values)
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-bold">Mы</CardTitle>
+                    <CardTitle className="text-2xl font-bold">MЫ</CardTitle>
                     <p className="text-sm text-gray-500">СДЕЛАЕМ ТВОЙ ОТЧЕТ</p>
                 </CardHeader>
 
@@ -21,42 +59,114 @@ export default function RegisterPage() {
                         <Button variant="ghost" className="font-bold border-b-2 border-black">REGISTRATION</Button>
                     </div>
 
-                    <div className="space-y-2">
-                        <h2 className="text-center text-xl font-semibold">РЕГИСТРАЦИЯ</h2>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            {/* Поле Имя */}
+                            <FormField
+                                control={form.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Имя</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Софья"
+                                                {...field}
+                                                className={form.formState.errors.name && "border-red-500"}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="text-red-500 text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Имя</Label>
-                                <Input id="name" placeholder="Софья" />
-                            </div>
+                            {/* Поле Фамилия */}
+                            <FormField
+                                control={form.control}
+                                name="surname"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Фамилия</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Константинова"
+                                                {...field}
+                                                className={form.formState.errors.surname && "border-red-500"}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="text-red-500 text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                            <div className="space-y-2">
-                                <Label htmlFor="surname">Фамилия</Label>
-                                <Input id="surname" placeholder="Константинова" />
-                            </div>
+                            {/* Поле Email */}
+                            <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>E-mail</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="turkish.sweetshop@gmail.com"
+                                                {...field}
+                                                className={form.formState.errors.email && "border-red-500"}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="text-red-500 text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                            <div className="space-y-2">
-                                <Label htmlFor="email">E-mail</Label>
-                                <Input id="email" type="email" placeholder="turkish.sweetshop@gmail.com" />
-                            </div>
+                            {/* Поле Пароль */}
+                            <FormField
+                                control={form.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Пароль</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="password"
+                                                placeholder="***********"
+                                                {...field}
+                                                className={form.formState.errors.password && "border-red-500"}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="text-red-500 text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                            <div className="space-y-2">
-                                <Label htmlFor="password">Пароль</Label>
-                                <Input id="password" type="password" placeholder="***********" />
-                            </div>
+                            {/* Подтверждение пароля */}
+                            <FormField
+                                control={form.control}
+                                name="confirmPassword"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Подтвердите пароль</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="password"
+                                                placeholder="***********"
+                                                {...field}
+                                                className={form.formState.errors.confirmPassword && "border-red-500"}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="text-red-500 text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                            <div className="space-y-2">
-                                <Label htmlFor="confirm-password">Подтвердите пароль</Label>
-                                <Input id="confirm-password" type="password" placeholder="***********" />
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-
-                <CardFooter className="flex flex-col space-y-4">
-                    <Button className="w-full bg-black hover:bg-gray-800">
-                        РЕГИСТРАЦИЯ
-                    </Button>
+                            <Button
+                                type="submit"
+                                className="w-full bg-black hover:bg-gray-800"
+                                disabled={form.formState.isSubmitting}
+                            >
+                                {form.formState.isSubmitting ? "Отправка..." : "РЕГИСТРАЦИЯ"}
+                            </Button>
+                        </form>
+                    </Form>
 
                     <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
@@ -75,6 +185,15 @@ export default function RegisterPage() {
                         </svg>
                         Продолжить с Google
                     </Button>
+                </CardContent>
+
+                <CardFooter className="flex justify-center">
+                    <p className="text-sm text-gray-600">
+                        Уже есть аккаунт?{' '}
+                        <Link href="/login" className="text-black hover:underline font-medium">
+                            Войти
+                        </Link>
+                    </p>
                 </CardFooter>
             </Card>
         </div>
