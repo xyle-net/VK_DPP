@@ -9,10 +9,11 @@ export default function Home() {
                 <Link href="/login">
                     <Button
                         variant="ghost"
-                        className="text-white hover:text-white hover:bg-transparent"
+                        className="text-white hover:text-white hover:bg-transparent hover:underline"
                     >
                         Войти
                     </Button>
+
                 </Link>
             </div>
 
