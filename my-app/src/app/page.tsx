@@ -12,9 +12,7 @@ export default function Home() {
     return (
         <div className="min-h-screen bg-[#808AFC] flex items-center justify-center p-8">
             <div className="bg-white rounded-2xl p-10 max-w-4xl w-full">
-                {/* Контейнер для текста и картинки */}
                 <div className="flex items-center space-x-8">
-                    {/* Текстовая часть */}
                     <div className="flex-1">
                         <h1 className="text-5xl font-bold text-black">МЫ</h1>
                         <h2 className="text-4xl font-bold text-black">СДЕЛАЕМ ТВОЙ ОТЧЕТ</h2>
@@ -26,13 +24,11 @@ export default function Home() {
                         </p>
                     </div>
 
-                    {/* Картинка */}
                     <div className="w-100 h-100 flex-shrink-0">
                         <Image src="/images/report.png" alt="Cloud Report" width={500} height={500} />
                     </div>
                 </div>
 
-                {/* Блок с кнопками для загрузки и скачивания */}
                 <div className="mt-8">
                     <label className="text-sm font-semibold text-gray-800">ФАЙЛ ДЛЯ ОФОРМЛЕНИЯ:</label>
                     <div className="flex items-center mt-2 space-x-2 bg-[#DBDEFF] rounded-[30px] p-2">
@@ -56,8 +52,7 @@ export default function Home() {
                             СКАЧАТЬ
                         </Button>
                     </div>
-                    {/* Пользовательское соглашение */}
-                    <p className="text-xs text-gray-500 mt-4">*ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ</p>
+                    <p className="text-xs text-gray-500 mt-4 text-center">*ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ</p>
                 </div>
             </div>
 
