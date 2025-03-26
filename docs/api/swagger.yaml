@@ -1,0 +1,148 @@
+openapi: 3.0.0
+info:
+  title: GOST Document Processing API
+  version: 1.0.0
+  description: API для системы обработки документов ГОСТ
+
+servers:
+  - url: http://localhost:8080
+    description: Auth Service
+  - url: http://localhost:8081
+    description: Document Service
+
+tags:
+  - name: Auth
+    description: Аутентификация пользователей
+  - name: Documents
+    description: Управление документами
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string }
+                email: { type: string }
+      responses:
+        '200': { description: JWT токен }
+        '400': { description: Ошибка валидации }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход в систему
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: JWT токен }
+        '401': { description: Ошибка авторизации }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход из системы
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      responses:
+        '200': { description: Успешный выход }
+        '401': { description: Ошибка авторизации }
+
+  /api/doc/upload:
+    post:
+      tags: [Documents]
+      summary: Загрузка документов
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200': { description: ID документов }
+        '401': { description: Не авторизован }
+
+  /api/doc/status/{docId}:
+    get:
+      tags: [Documents]
+      summary: Статус документа
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: docId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200': { description: Информация о документе }
+        '404': { description: Документ не найден }
+
+  /api/doc/my:
+    get:
+      tags: [Documents]
+      summary: Список документов пользователя
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Список документов }
+        '401': { description: Не авторизован }
+
+  /api/doc/download/{docId}:
+    get:
+      tags: [Documents]
+      summary: Скачивание документа
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: docId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200': { description: Файл документа }
+        '404': { description: Документ не найден }
+
+  /api/doc/preview/{docId}:
+    get:
+      tags: [Documents]
+      summary: Предпросмотр документа
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: docId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200': { description: Информация для предпросмотра }
+        '404': { description: Документ не найден }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

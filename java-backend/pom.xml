@@ -33,15 +33,12 @@
 
     <modules>
         <module>auth-service</module>
-		<module>admin-service</module>
+		<!--<module>admin-service</module>-->
 		<module>doc-service</module>
     </modules>
 
 	<dependencies>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>
+		
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>

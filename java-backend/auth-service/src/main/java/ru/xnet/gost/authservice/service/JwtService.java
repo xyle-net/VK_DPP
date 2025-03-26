@@ -21,14 +21,17 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secretKey;
     
-    @Value("${jwt.expiration:86400000}")
+    @Value("${jwt.expiration:86400000}") // 24 часа срок жизни токена
     private long jwtExpiration;
 
+
+    // Получение ключа для подписи JWT из секретного ключа
     private Key getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
-
+    
+    // Генерация JWT для пользователя
     public String generateToken(User user) {
         return Jwts.builder()
                 .setSubject(user.getUsername())
@@ -40,6 +43,7 @@ public class JwtService {
                 .compact();
     }
 
+    // Проверка истечения срока действия токена
     public boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
@@ -48,15 +52,18 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration);
     }
 
+    // Извлечение имени пользователя из токена
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
+    // Общий метод для извлечения данных из токена
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
+    // Извлечение всех данных из токена
     private Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())

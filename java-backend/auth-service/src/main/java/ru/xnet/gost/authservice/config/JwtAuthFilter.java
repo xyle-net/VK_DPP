@@ -30,7 +30,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-
+        // Пропускаем запросы к эндпоинтам аутентификации
         if (request.getServletPath().startsWith("/api/auth/")) {
             filterChain.doFilter(request, response);
             return;
@@ -38,6 +38,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
         
+        // если токен не найден или не начинается с "Bearer "
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("No token found in request");
             filterChain.doFilter(request, response);
@@ -46,6 +47,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         try {
             final String token = authHeader.substring(7);
+            // Проверяем срок действия токена
             if (jwtService.isTokenExpired(token)) {
                 log.warn("Token is expired");
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -54,10 +56,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             
             filterChain.doFilter(request, response);
         } catch (ExpiredJwtException e) {
+            // Обработка истекшего токена
             log.warn("Token expired: {}", e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Токен истёк. Пожалуйста, войдите заново");
         } catch (MalformedJwtException e) {
+            // Обработка некорректного токена
             log.error("Malformed token: {}", e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Неправильный формат токена");

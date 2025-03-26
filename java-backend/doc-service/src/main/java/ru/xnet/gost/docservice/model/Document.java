@@ -15,7 +15,6 @@ public class Document {
     private long id;
     private String userId;
     private String fileName;
-    private String filePath;
     @Enumerated(EnumType.STRING)
     private DocumentStatus status;
     @CreationTimestamp

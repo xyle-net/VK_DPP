@@ -23,6 +23,7 @@ public class AuthService {
     private final JwtService jwtService;
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
+    // Регистрация нового пользователя
     public void registerUser(String username, String password, String email) {
         if (userRepository.existsByUsername(username)) {
             throw new AuthException("Username already exists");
@@ -44,6 +45,7 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    // Аутентификация пользователя и генерация JWT
     public String loginUser(String username, String password) {
         User user = userRepository.findByUsername(username)
                                   .orElseThrow(() -> new AuthException("User not found"));
@@ -55,11 +57,16 @@ public class AuthService {
         return jwtService.generateToken(user);
     }
 
+    // Проверка прав доступа
     public boolean hasAccess(User user, String requiredRole) {
         return user != null &&
                 user.getRole().toString().equals(requiredRole);
     }
+
+    // Хранилище недействительных токенов
     private final Set<String> invalidatedTokens = Collections.synchronizedSet(new HashSet<>());
+    
+    // Выход из системы (инвалидация токена)
     public void logout(String token) {
         try {
             if (jwtService.isTokenExpired(token)) {
@@ -77,6 +84,7 @@ public class AuthService {
         }
     }
 
+    // Проверка действительности токена
     public boolean isTokenExpired(String token) {
         try {
             return jwtService.isTokenExpired(token) || invalidatedTokens.contains(token);
@@ -86,7 +94,3 @@ public class AuthService {
         }
     }
 }
-
-
-
-

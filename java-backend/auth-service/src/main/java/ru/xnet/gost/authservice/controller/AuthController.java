@@ -21,6 +21,7 @@ public class AuthController {
     private final AuthService authService;
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
+    //регистрация с автоматическим логином
     @PostMapping("/register")
     public String register(@RequestBody RegisterRequest request) {
         try {
@@ -40,7 +41,8 @@ public class AuthController {
             return "Error during registration: " + e.getMessage();
         }
     }
-
+    
+    // аутентификация
     @PostMapping("/login")
     public String login(@RequestBody LoginRequest request) {
         try {
@@ -56,6 +58,7 @@ public class AuthController {
         }
     }
 
+    // выход из системы
     @PostMapping("/logout")
     public String logout(@RequestHeader("Authorization") String authHeader) {
         try {
