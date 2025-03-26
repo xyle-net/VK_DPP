@@ -1,0 +1,21 @@
+FROM python:3.8-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements file
+COPY kafka-requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r kafka-requirements.txt
+
+# Copy the kafka listener script
+COPY kafka_listener.py .
+
+# Command to run the application
+CMD ["python", "kafka_listener.py"] 

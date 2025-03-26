@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: auth_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: qweasdzxc
+      POSTGRES_PASSWORD: ${POSTGRES_AUTH_PASSWORD}
     volumes:
       - postgres_auth_data:/var/lib/postgresql/data
 
@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_DB: doc_service
       POSTGRES_USER: ITdiakon
-      POSTGRES_PASSWORD: diakon-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_DOC_PASSWORD}
     volumes:
       - postgres_doc_data:/var/lib/postgresql/data
   zookeeper:
@@ -38,10 +38,14 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181  # Внутренний порт остается 2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -53,11 +57,54 @@ services:
       - "9000:9000"
       - "9001:9001" #web
     environment:
-      MINIO_ROOT_USER: ITdiakon
-      MINIO_ROOT_PASSWORD: diakon-minio
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server --console-address ":9001" /data #web
+    restart: always
+
+  gost-formatter-api:
+    build: 
+      context: ./gost-formatter
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"  # Map container port 5000 to host port 5000
+    volumes:
+      - ./gost-formatter/models:/app/models  # Mount models directory
+      - ./gost-formatter/uploads:/app/uploads  # Mount uploads directory
+      - ./gost-formatter/static:/app/static  # Mount static directory
+    restart: always
+    environment:
+      - FLASK_APP=${FLASK_APP}
+      - FLASK_ENV=${FLASK_ENV}
+
+  gost-kafka-listener:
+    build:
+      context: ./gost-formatter
+      dockerfile: Dockerfile.kafka-listener
+    depends_on:
+      - kafka
+      - minio
+      - gost-formatter-api
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - GOST_FORMATTER_API=http://gost-formatter-api:5000/api/format
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+    restart: always
+
+  gost-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_GOST_API_URL=http://localhost:5000
+    depends_on:
+      - gost-formatter-api
     restart: always
 
 volumes:
