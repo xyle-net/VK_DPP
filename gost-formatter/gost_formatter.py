@@ -546,7 +546,7 @@ class GostFormatter:
             elif is_list_item:
                 element['type'] = 'list_item'
                 # Check if this is a bibliography item
-                if re.match(r'^\d+\.\s+', line) and any(prev['text'].upper().find('СПИСОК') >= 0 and prev['text'].upper().find('ЛИТЕРАТУР') >= 0 for prev in document_elements[-10:] if prev['type'] == 'header'):
+                if re.match(r'^\d+\.\s+', line) and any(prev['text'].upper().find('СПИСОК') >= 0 and prev['text'].upper().find('ЛИТЕРАТ') >= 0 for prev in document_elements[-10:] if prev['type'] == 'header'):
                     element['format'] = 'bibliography'
                 else:
                     element['format'] = 'regular_list'
@@ -678,7 +678,7 @@ class GostFormatter:
             
             elif element['type'] == 'list_item':
                 # For list items, format differently based on bibliography or regular list
-                if element['format'] == 'bibliography' or (current_section and "СПИСОК" in current_section.upper() and "ЛИТЕРАТУР" in current_section.upper()):
+                if element['format'] == 'bibliography' or (current_section and "СПИСОК" in current_section.upper() and "ЛИТЕРАТ" in current_section.upper()):
                     p = self.document.add_paragraph(style='GOST Bibliography')
                     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                     p.add_run(element['text'])
@@ -853,9 +853,160 @@ class GostFormatter:
             print(f"Error applying page numbering: {e}")
             return input_docx
 
+    def validate_document(self, text):
+        """
+        Validate if the document contains all required sections according to GOST standards.
+        Returns a dict with validation results and missing sections.
+        """
+        # Convert to lowercase for case-insensitive matching
+        text_lower = text.lower()
+        
+        # Dictionary to track missing sections
+        missing_sections = []
+        
+        # Additional warnings list
+        warnings = []
+        
+        # Check for text before first header
+        lines = text.split('\n')
+        found_first_header = False
+        text_before_header = False
+        
+        for line in lines:
+            line = line.strip()
+            # Skip empty lines
+            if not line:
+                continue
+                
+            # Check if this is a header
+            is_header = (
+                line.lower().startswith("введение") or
+                line.lower().startswith("глава") or
+                re.match(r'^\d+\.\s+[А-Я]', line)
+            )
+            
+            if is_header:
+                found_first_header = True
+                break
+            else:
+                # If we have non-empty text that's not a header, flag it
+                text_before_header = True
+                break
+        
+        if text_before_header:
+            warnings.append("Обнаружен текст перед первым заголовком. Рекомендуется начинать документ с заголовка 'Введение'.")
+        
+        # Check for introduction (required)
+        if "введение" not in text_lower:
+            missing_sections.append("введение")
+            
+        # Check for conclusion (required)
+        if "заключение" not in text_lower:
+            missing_sections.append("заключение")
+            
+        # Check for bibliography section (at least one variant required)
+        has_bibliography = any(section in text_lower for section in [
+            "список использованных источников", 
+            "список использованной литературы",
+            "список литературы",
+            "список используемой литературы",  # Additional variation
+            "библиографический список",
+            "литература"
+        ])
+        
+        if not has_bibliography:
+            missing_sections.append("список использованных источников")
+        
+        # Generate placeholder text for missing sections
+        placeholders = {}
+        if "введение" in missing_sections:
+            placeholders["введение"] = "ВВЕДЕНИЕ\n\nВ данном разделе необходимо описать актуальность работы, цели и задачи исследования. Данный текст является заполнителем и должен быть заменен на содержательное введение.\n\n"
+            
+        if "заключение" in missing_sections:
+            placeholders["заключение"] = "ЗАКЛЮЧЕНИЕ\n\nВ данном разделе необходимо подвести итоги работы, сформулировать выводы, оценить результаты и перспективы дальнейших исследований. Данный текст является заполнителем и должен быть заменен на содержательное заключение.\n\n"
+            
+        if not has_bibliography:
+            placeholders["список использованных источников"] = "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ\n\n1. Фамилия И.О. Название книги. — Город: Издательство, год. — кол-во страниц с.\n2. Фамилия И.О. Название статьи // Название журнала. — год. — том, номер. — страницы.\n\n"
+        
+        return {
+            "is_valid": len(missing_sections) == 0,
+            "missing_sections": missing_sections,
+            "placeholders": placeholders,
+            "warnings": warnings
+        }
+
     def create_gost_document(self, input_text, output_file, title="", author="", institution="", city="", year=""):
-        # Parse input text
-        self.parse_text(input_text)
+        # Validate document
+        validation_results = self.validate_document(input_text)
+        
+        # Insert placeholders for missing sections at logical positions rather than at the end
+        modified_text = input_text
+        
+        # If we need to add sections, we need to do it in a structured way
+        if validation_results["placeholders"]:
+            # Split text into lines for processing
+            lines = modified_text.split('\n')
+            
+            # Check if we need to add introduction
+            if "введение" in validation_results["placeholders"]:
+                # Introduction should be at the beginning of the document, after any title
+                intro_text = validation_results["placeholders"]["введение"]
+                # Look for a good insertion point - after title/metadata but before chapters
+                insert_point = 0
+                for i, line in enumerate(lines):
+                    # Skip initial empty lines
+                    if i < 5 and not line.strip():
+                        continue
+                    # If we find a chapter, insert before it
+                    if "ГЛАВА" in line or "глава" in line:
+                        insert_point = i
+                        break
+                    # If we reach end of potential metadata, insert there
+                    if i > 10:
+                        insert_point = i
+                        break
+                
+                # Insert intro at determined point
+                lines.insert(insert_point, intro_text)
+            
+            # Check if we need to add conclusion
+            if "заключение" in validation_results["placeholders"]:
+                # Conclusion should be after the last chapter but before references
+                concl_text = validation_results["placeholders"]["заключение"]
+                # Find the last chapter or section
+                insert_point = len(lines)
+                for i in range(len(lines) - 1, 0, -1):
+                    line = lines[i].upper()
+                    if "СПИСОК" in line and ("ЛИТЕРАТУР" in line or "ИСТОЧНИК" in line):
+                        insert_point = i
+                        break
+                    if "ГЛАВА" in line:
+                        # Insert after this chapter and its content
+                        # Find the end of this chapter's content
+                        chapter_end = i + 1
+                        while chapter_end < len(lines) and not (
+                            "ГЛАВА" in lines[chapter_end].upper() or 
+                            "ЗАКЛЮЧЕНИЕ" in lines[chapter_end].upper() or
+                            "СПИСОК" in lines[chapter_end].upper()
+                        ):
+                            chapter_end += 1
+                        insert_point = chapter_end
+                        break
+                
+                # Insert conclusion at determined point
+                lines.insert(insert_point, "\n" + concl_text)
+            
+            # Check if we need to add bibliography
+            if not validation_results["is_valid"] and "список использованных источников" in validation_results["placeholders"]:
+                # Bibliography should be at the end of the document
+                bib_text = validation_results["placeholders"]["список использованных источников"]
+                lines.append("\n" + bib_text)
+            
+            # Reconstruct the text
+            modified_text = '\n'.join(lines)
+        
+        # Parse input text with added placeholders if needed
+        self.parse_text(modified_text)
         
         # Create title page
         self.create_title_page(title, author, institution, city, year)
@@ -885,7 +1036,8 @@ class GostFormatter:
         if SPIRE_AVAILABLE:
             output_file = self.apply_page_numbering(output_file)
         
-        return output_file
+        # Return the output file path and validation results
+        return output_file, validation_results
 
 def train_ml_classifier():
     """Train the ML classifier if not already trained."""
@@ -931,7 +1083,7 @@ def main():
     
     # Create formatter and generate document
     formatter = GostFormatter(use_ml=args.use_ml)
-    formatter.create_gost_document(
+    output_file, validation_results = formatter.create_gost_document(
         input_text, 
         args.output_file,
         args.title,
@@ -940,6 +1092,13 @@ def main():
         args.city,
         args.year
     )
+    
+    # Print validation warnings if any
+    if not validation_results["is_valid"]:
+        missing_sections = ", ".join(validation_results["missing_sections"])
+        print(f"\nWarning: Document is missing required sections: {missing_sections}")
+        print("Placeholders have been added to the document for these sections.")
+        print("Please review and update the document with appropriate content.")
 
 if __name__ == "__main__":
     main() 

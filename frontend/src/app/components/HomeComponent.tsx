@@ -16,6 +16,7 @@ export default function HomeComponent() {
     const [documentUrl, setDocumentUrl] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string>("document.docx");
     const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline'>('loading');
+    const [warnings, setWarnings] = useState<string[]>([]);
     
     // Metadata state
     const [title, setTitle] = useState<string>("");
@@ -56,6 +57,7 @@ export default function HomeComponent() {
         setLoading(true);
         setError(null);
         setDocumentUrl(null);
+        setWarnings([]);
 
         try {
             const formData = new FormData();
@@ -78,6 +80,85 @@ export default function HomeComponent() {
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Ошибка при форматировании документа');
+            }
+
+            // Helper function to decode base64
+            const decodeBase64 = (str: string): string => {
+                try {
+                    // Decode from base64 and then from UTF-8
+                    return decodeURIComponent(atob(str).split('').map(function(c) {
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }).join(''));
+                } catch (e) {
+                    console.error('Failed to decode base64 string:', e);
+                    return str;
+                }
+            };
+
+            // Create an array to collect all warnings
+            let allWarnings: string[] = [];
+            
+            // Get missing sections if available - for base64 encoded headers
+            const missingSectionsBase64 = response.headers.get('X-Missing-Sections-Base64');
+            if (missingSectionsBase64) {
+                try {
+                    const decodedSections = decodeBase64(missingSectionsBase64);
+                    const missingSections = JSON.parse(decodedSections);
+                    if (Array.isArray(missingSections) && missingSections.length > 0) {
+                        // Add specific warning for each missing section
+                        const sectionWarnings = missingSections.map(section => 
+                            `В документе отсутствует раздел "${section}". Добавлен шаблон.`
+                        );
+                        allWarnings = [...allWarnings, ...sectionWarnings];
+                    }
+                } catch (e) {
+                    console.error('Failed to parse missing sections:', e);
+                    
+                    // Fallback to ASCII transliterated headers if base64 decoding fails
+                    const asciiSections = response.headers.get('X-Missing-Sections-ASCII');
+                    if (asciiSections) {
+                        try {
+                            const missingSections = JSON.parse(asciiSections);
+                            if (Array.isArray(missingSections) && missingSections.length > 0) {
+                                // Use transliterated section names
+                                const translationMap: Record<string, string> = {
+                                    'introduction': 'введение',
+                                    'conclusion': 'заключение',
+                                    'references': 'список использованных источников'
+                                };
+                                
+                                const sectionWarnings = missingSections.map(section => {
+                                    const translatedSection = translationMap[section] || section;
+                                    return `В документе отсутствует раздел "${translatedSection}". Добавлен шаблон.`;
+                                });
+                                
+                                allWarnings = [...allWarnings, ...sectionWarnings];
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse ASCII sections:', e);
+                        }
+                    }
+                }
+            }
+            
+            // Get additional warnings if available
+            const extraWarningsBase64 = response.headers.get('X-Extra-Warnings-Base64');
+            if (extraWarningsBase64) {
+                try {
+                    const decodedWarnings = decodeBase64(extraWarningsBase64);
+                    const extraWarnings = JSON.parse(decodedWarnings);
+                    if (Array.isArray(extraWarnings) && extraWarnings.length > 0) {
+                        allWarnings = [...allWarnings, ...extraWarnings];
+                    }
+                } catch (e) {
+                    console.error('Failed to parse extra warnings:', e);
+                }
+            }
+            
+            // Set all warnings in state for display
+            if (allWarnings.length > 0) {
+                console.log('Setting warnings:', allWarnings);
+                setWarnings(allWarnings);
             }
 
             // Get filename from Content-Disposition header if available
@@ -248,6 +329,26 @@ export default function HomeComponent() {
                         <p className="text-sm text-red-500 mt-2">
                             {error}
                         </p>
+                    )}
+
+                    {warnings.length > 0 && (
+                        <div className="mt-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-md">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <h4 className="text-yellow-700 font-medium text-sm">Предупреждения:</h4>
+                                    <ul className="list-disc pl-5 mt-1">
+                                        {warnings.map((warning, index) => (
+                                            <li key={index} className="text-yellow-600 text-sm">{warning}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     <label className="text-sm font-semibold text-gray-800 mt-4">НОВЫЙ ГОСТ ФАЙЛ:</label>

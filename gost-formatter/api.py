@@ -7,6 +7,8 @@ import traceback
 import json
 from gost_formatter import GostFormatter
 from flask_cors import CORS
+import base64
+import re
 
 # Import all classes and functions from ml_classifier.py
 try:
@@ -14,7 +16,6 @@ try:
     import numpy as np
     import torch
     import torch.nn as nn
-    import re
     import pickle
     
     # Import everything from ml_classifier using wildcard
@@ -135,7 +136,8 @@ def format_document():
         formatter = GostFormatter(use_ml=use_ml)
         
         try:
-            output_path = formatter.create_gost_document(
+            # Call create_gost_document which now returns tuple (output_path, validation_results)
+            result = formatter.create_gost_document(
                 input_text, 
                 output_path,
                 title,
@@ -145,14 +147,68 @@ def format_document():
                 year
             )
             
-            # Send the file
+            # Unpack the result
+            output_path, validation_results = result
+
+            # Create response headers
+            response_headers = {}
+
+            # Add debug info
+            app.logger.info(f"Validation results: {json.dumps(validation_results, ensure_ascii=False)}")
+            
+            # Log the detected main headers for debugging
+            if hasattr(formatter, 'document_elements'):
+                main_headers = [element['text'] for element in formatter.document_elements 
+                               if element.get('type') == 'header' and element.get('level') == 1]
+                app.logger.info(f"Main headers detected: {json.dumps(main_headers, ensure_ascii=False)}")
+                
+                # Check specifically for bibliography sections
+                bibliography_headers = [header for header in main_headers 
+                                       if any(term in header.lower() for term in 
+                                             ['список', 'литератур', 'источник', 'библиограф'])]
+                app.logger.info(f"Bibliography headers: {json.dumps(bibliography_headers, ensure_ascii=False)}")
+            
+            # If document has missing sections, include warning headers
+            if not validation_results["is_valid"]:
+                # Add warnings to the response headers - use base64 encoding to handle Unicode characters
+                missing_sections = ", ".join(validation_results["missing_sections"])
+                warning_message = f"Document is missing required sections: {missing_sections}. Placeholders have been added."
+                
+                app.logger.info(f"Warning message: {warning_message}")
+                
+                # Base64 encode the messages containing non-ASCII characters
+                encoded_warning = base64.b64encode(warning_message.encode('utf-8')).decode('ascii')
+                encoded_sections = base64.b64encode(json.dumps(validation_results["missing_sections"], ensure_ascii=False).encode('utf-8')).decode('ascii')
+                
+                response_headers["X-Document-Warning-Base64"] = encoded_warning
+                response_headers["X-Missing-Sections-Base64"] = encoded_sections
+                
+                # Add an additional warning with ASCII transliteration for diagnostic purposes
+                ascii_sections = [section.replace("введение", "introduction").replace("заключение", "conclusion").replace("список использованных источников", "references") for section in validation_results["missing_sections"]]
+                response_headers["X-Missing-Sections-ASCII"] = json.dumps(ascii_sections)
+            
+            # Add additional warnings if any
+            if validation_results.get("warnings") and len(validation_results["warnings"]) > 0:
+                app.logger.info(f"Additional warnings: {json.dumps(validation_results['warnings'], ensure_ascii=False)}")
+                
+                # Base64 encode the warnings
+                encoded_extra_warnings = base64.b64encode(json.dumps(validation_results["warnings"], ensure_ascii=False).encode('utf-8')).decode('ascii')
+                response_headers["X-Extra-Warnings-Base64"] = encoded_extra_warnings
+            
+            # Send the file with additional headers
             output_filename = secure_filename(title if title else 'document') + '.docx'
-            return send_file(
+            response = send_file(
                 output_path,
                 as_attachment=True,
                 download_name=output_filename,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
+            
+            # Add the headers to the response
+            for header, value in response_headers.items():
+                response.headers[header] = value
+            
+            return response
         except Exception as e:
             app.logger.error(f"Error formatting document: {str(e)}")
             app.logger.error(traceback.format_exc())
@@ -217,4 +273,4 @@ def root():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    app.run(debug=False, host='0.0.0.0', port=5000) 
