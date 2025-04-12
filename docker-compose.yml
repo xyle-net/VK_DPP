@@ -78,6 +78,9 @@ services:
     environment:
       - FLASK_APP=${FLASK_APP}
       - FLASK_ENV=${FLASK_ENV}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_API_URL=${LLM_API_URL}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME}
 
   gost-kafka-listener:
     build:

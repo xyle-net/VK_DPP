@@ -9,6 +9,7 @@ from docx.oxml.ns import qn
 from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml import OxmlElement
 from docx.oxml.shared import qn
+import requests
 
 # Import ML classifier if available
 try:
@@ -29,7 +30,7 @@ except ImportError:
     print("Spire.Doc not available. Page numbering will not be applied.")
 
 class GostFormatter:
-    def __init__(self, use_ml=True):
+    def __init__(self, use_ml=True, use_llm=True):
         self.document = Document()
         self.setup_document_formatting()
         self.sections = []
@@ -39,6 +40,9 @@ class GostFormatter:
         # Initialize ML classifier if available and requested
         self.use_ml = use_ml and ML_AVAILABLE
         self.classifier = None
+        
+        # Set whether to use LLM for placeholder generation
+        self.use_llm = use_llm
         
         if self.use_ml:
             model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models/section_classifier.pt')
@@ -950,7 +954,7 @@ class GostFormatter:
             # Check if we need to add introduction
             if "введение" in validation_results["placeholders"]:
                 # Introduction should be at the beginning of the document, after any title
-                intro_text = validation_results["placeholders"]["введение"]
+                intro_text = self.generate_smart_placeholder("введение", input_text)
                 # Look for a good insertion point - after title/metadata but before chapters
                 insert_point = 0
                 for i, line in enumerate(lines):
@@ -972,12 +976,12 @@ class GostFormatter:
             # Check if we need to add conclusion
             if "заключение" in validation_results["placeholders"]:
                 # Conclusion should be after the last chapter but before references
-                concl_text = validation_results["placeholders"]["заключение"]
+                concl_text = self.generate_smart_placeholder("заключение", input_text)
                 # Find the last chapter or section
                 insert_point = len(lines)
                 for i in range(len(lines) - 1, 0, -1):
                     line = lines[i].upper()
-                    if "СПИСОК" in line and ("ЛИТЕРАТУР" in line or "ИСТОЧНИК" in line):
+                    if "СПИСОК" in line and ("ЛИТЕРАТ" in line or "ИСТОЧНИК" in line):
                         insert_point = i
                         break
                     if "ГЛАВА" in line:
@@ -999,7 +1003,7 @@ class GostFormatter:
             # Check if we need to add bibliography
             if not validation_results["is_valid"] and "список использованных источников" in validation_results["placeholders"]:
                 # Bibliography should be at the end of the document
-                bib_text = validation_results["placeholders"]["список использованных источников"]
+                bib_text = self.generate_smart_placeholder("список использованных источников", input_text)
                 lines.append("\n" + bib_text)
             
             # Reconstruct the text
@@ -1039,6 +1043,148 @@ class GostFormatter:
         # Return the output file path and validation results
         return output_file, validation_results
 
+    def generate_smart_placeholder(self, section_type, document_text):
+        """
+        Generate a contextually relevant placeholder for a missing section using LLM.
+        Falls back to a standard placeholder if the API is unavailable or LLM is disabled.
+        
+        Args:
+            section_type: The type of section to generate ('введение', 'заключение', etc.)
+            document_text: The text of the document to provide context
+        
+        Returns:
+            A string containing the generated placeholder text
+        """
+        # Default placeholders as fallback
+        default_placeholders = {
+            "введение": "ВВЕДЕНИЕ\n\nВ данном разделе необходимо описать актуальность работы, цели и задачи исследования. Данный текст является заполнителем и должен быть заменен на содержательное введение.\n\n",
+            "заключение": "ЗАКЛЮЧЕНИЕ\n\nВ данном разделе необходимо подвести итоги работы, сформулировать выводы, оценить результаты и перспективы дальнейших исследований. Данный текст является заполнителем и должен быть заменен на содержательное заключение.\n\n",
+            "список использованных источников": "СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ\n\n1. Фамилия И.О. Название книги. — Город: Издательство, год. — кол-во страниц с.\n2. Фамилия И.О. Название статьи // Название журнала. — год. — том, номер. — страницы.\n\n"
+        }
+        
+        # If LLM is disabled or API key is not available, return default placeholder
+        if not self.use_llm or not os.environ.get("OPENAI_API_KEY", ""):
+            print("LLM is disabled or no API key available. Using default placeholder.")
+            return default_placeholders.get(section_type, f"РАЗДЕЛ\n\nЗдесь должен быть раздел '{section_type}'.\n\n")
+        
+        try:
+            # Extract document title and main topics for context
+            document_summary = self.extract_document_summary(document_text)
+            
+            # Map section types to English for the API
+            section_type_map = {
+                "введение": "introduction",
+                "заключение": "conclusion",
+                "список использованных источников": "bibliography"
+            }
+            
+            section_type_en = section_type_map.get(section_type, section_type)
+            
+            # Create the API URL - get from environment variable or use default
+            api_url = os.environ.get("LLM_API_URL", "https://api.openai.com/v1/chat/completions")
+            
+            # Get model name from environment variable or use default
+            model_name = os.environ.get("LLM_MODEL_NAME", "gpt-3.5-turbo")
+            
+            # Prepare the prompt
+            if section_type_en == "introduction":
+                prompt = f"Generate a brief introduction section for an academic paper in Russian on the topic of: {document_summary}. Include purpose, relevance, and objectives of the research. Format it as 'ВВЕДЕНИЕ' followed by 2-3 paragraphs. Keep it formal and scholarly. DO NOT use numbered lists with formats like '1) 2) 3)' - use full paragraphs instead."
+            elif section_type_en == "conclusion":
+                prompt = f"Generate a brief conclusion section for an academic paper in Russian on the topic of: {document_summary}. Summarize the findings, address the objectives mentioned, and suggest future research. Format it as 'ЗАКЛЮЧЕНИЕ' followed by 2-3 paragraphs. Keep it formal and scholarly. DO NOT use numbered lists with formats like '1) 2) 3)' - use full paragraphs instead."
+            elif section_type_en == "bibliography":
+                prompt = f"Generate a bibliography section with 5 academic sources relevant to this topic in Russian: {document_summary}. Format it as 'СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ' followed by numbered entries in GOST format. Each entry should be on a new line and follow this pattern: '1. Фамилия И.О. Название источника. — Город: Издательство, год. — кол-во страниц с.' Use only the format '1.' for numbering, not '1)'."
+            else:
+                # Unknown section type, use default
+                return default_placeholders.get(section_type, f"РАЗДЕЛ\n\nЗдесь должен быть раздел '{section_type}'.\n\n")
+            
+            # Prepare the API request
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {"role": "system", "content": "You are an academic writing assistant that specializes in GOST standards for Russian academic papers."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+            
+            # Set headers
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', '')}"
+            }
+            
+            # Log the API call details (without sensitive info)
+            print(f"Calling LLM API with model: {model_name} at URL: {api_url}")
+            
+            # Make a single API request with a timeout - no retries to avoid rate limits
+            try:
+                response = requests.post(
+                    api_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=10  # 10 second timeout
+                )
+                
+                # Check for successful response
+                if response.status_code == 200:
+                    result = response.json()
+                    if 'choices' in result and len(result['choices']) > 0:
+                        generated_text = result['choices'][0]['message']['content'].strip()
+                        # Return the generated text
+                        return generated_text
+                
+                # If API call fails for any reason, log and use default placeholder
+                print(f"LLM API error: {response.status_code} - {response.text}")
+                # Immediately fall back to default placeholder, no retries
+                return default_placeholders.get(section_type, f"РАЗДЕЛ\n\nЗдесь должен быть раздел '{section_type}'.\n\n")
+                    
+            except Exception as e:
+                print(f"Error calling LLM API: {e}")
+                # Immediately fall back to default placeholder
+                return default_placeholders.get(section_type, f"РАЗДЕЛ\n\nЗдесь должен быть раздел '{section_type}'.\n\n")
+                    
+        except Exception as e:
+            print(f"Error generating smart placeholder: {e}")
+            return default_placeholders.get(section_type, f"РАЗДЕЛ\n\nЗдесь должен быть раздел '{section_type}'.\n\n")
+
+    def extract_document_summary(self, text):
+        """
+        Extract a brief summary of the document to provide context for the LLM.
+        Focuses on document title, chapter headings, and key topics.
+        
+        Returns:
+            A string summarizing the document content
+        """
+        summary_parts = []
+        
+        # Extract potential title and chapter headings
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Look for titles (all caps or starting with "ГЛАВА")
+            if line.isupper() or line.startswith("ГЛАВА") or line.startswith("Глава"):
+                summary_parts.append(line)
+                
+            # Collect at most 5 titles
+            if len(summary_parts) >= 5:
+                break
+        
+        # If we didn't find any titles, extract some content
+        if not summary_parts:
+            # Extract the first 1000 characters (or less if document is shorter)
+            content_sample = text[:min(1000, len(text))]
+            # Split into words and take up to 50
+            words = content_sample.split()[:50]
+            content_summary = ' '.join(words)
+            summary_parts.append(content_summary)
+        
+        # Join all parts
+        return '. '.join(summary_parts)
+
 def train_ml_classifier():
     """Train the ML classifier if not already trained."""
     try:
@@ -1069,6 +1215,7 @@ def main():
     parser.add_argument('--city', default='Город', help='City')
     parser.add_argument('--year', default='2023', help='Year')
     parser.add_argument('--use-ml', action='store_true', help='Use ML for section detection')
+    parser.add_argument('--use-llm', action='store_true', help='Use LLM for generating smart placeholders')
     parser.add_argument('--train-ml', action='store_true', help='Train ML model before processing')
     
     args = parser.parse_args()
@@ -1082,7 +1229,7 @@ def main():
         input_text = f.read()
     
     # Create formatter and generate document
-    formatter = GostFormatter(use_ml=args.use_ml)
+    formatter = GostFormatter(use_ml=args.use_ml, use_llm=args.use_llm)
     output_file, validation_results = formatter.create_gost_document(
         input_text, 
         args.output_file,

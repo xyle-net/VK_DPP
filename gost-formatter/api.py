@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template, redirect, make_response
 import os
 import io
 import tempfile
@@ -9,6 +9,9 @@ from gost_formatter import GostFormatter
 from flask_cors import CORS
 import base64
 import re
+import logging
+import zipfile
+import shutil
 
 # Import all classes and functions from ml_classifier.py
 try:
@@ -25,16 +28,30 @@ except ImportError as e:
     print(f"Failed to import from ml_classifier.py: {e}")
     ML_IMPORTS_OK = False
 
+# Create Flask application
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, expose_headers=['X-Document-Warning-Base64', 'X-Missing-Sections-Base64', 'X-Extra-Warnings-Base64', 'X-Missing-Sections-ASCII'])  # Enable CORS for all routes
 
-# Configure upload folder
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'txt'}
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Get environment variables for configuration
+flask_env = os.environ.get('FLASK_ENV', 'production')
+debug_mode = flask_env == 'development'
+
+# Set environment variables for LLM integration
+os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
+os.environ["LLM_API_URL"] = os.environ.get("LLM_API_URL", "https://api.openai.com/v1/chat/completions")
+os.environ["LLM_MODEL_NAME"] = os.environ.get("LLM_MODEL_NAME", "gpt-3.5-turbo")
+
+# Configure upload folder and allowed extensions
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXTENSIONS = {'docx', 'zip', 'txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB max upload size
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -76,6 +93,10 @@ def format_document():
             use_ml_str = request.form.get('use_ml', 'true')
             use_ml = use_ml_str.lower() == 'true' if use_ml_str else True
             
+            # Get LLM usage parameter
+            use_llm_str = request.form.get('use_llm', 'true')
+            use_llm = use_llm_str.lower() == 'true' if use_llm_str else True
+            
             # Check for file or text in form
             if 'file' in request.files and request.files['file'].filename:
                 # Handle file upload
@@ -102,6 +123,7 @@ def format_document():
             city = request.json.get('city', '')
             year = request.json.get('year', '')
             use_ml = request.json.get('use_ml', True)
+            use_llm = request.json.get('use_llm', True)
             
             if 'text' not in request.json:
                 return jsonify({'error': 'No text content provided'}), 400
@@ -115,6 +137,7 @@ def format_document():
             city = request.form.get('city', '') if request.form else ''
             year = request.form.get('year', '') if request.form else ''
             use_ml = True
+            use_llm = False
             
             # Try to get file
             if request.files and 'file' in request.files and request.files['file'].filename:
@@ -133,7 +156,7 @@ def format_document():
             output_path = tmp_file.name
         
         # Format the document
-        formatter = GostFormatter(use_ml=use_ml)
+        formatter = GostFormatter(use_ml=use_ml, use_llm=use_llm)
         
         try:
             # Call create_gost_document which now returns tuple (output_path, validation_results)
@@ -246,7 +269,8 @@ def api_info():
                     {'name': 'institution', 'in': 'formData/body', 'type': 'string', 'required': 'false', 'description': 'Institution name'},
                     {'name': 'city', 'in': 'formData/body', 'type': 'string', 'required': 'false', 'description': 'City'},
                     {'name': 'year', 'in': 'formData/body', 'type': 'string', 'required': 'false', 'description': 'Year'},
-                    {'name': 'use_ml', 'in': 'formData/body', 'type': 'boolean', 'required': 'false', 'description': 'Whether to use ML for section detection'}
+                    {'name': 'use_ml', 'in': 'formData/body', 'type': 'boolean', 'required': 'false', 'description': 'Whether to use ML for section detection'},
+                    {'name': 'use_llm', 'in': 'formData/body', 'type': 'boolean', 'required': 'false', 'description': 'Whether to use LLM for placeholder generation'}
                 ]
             },
             {

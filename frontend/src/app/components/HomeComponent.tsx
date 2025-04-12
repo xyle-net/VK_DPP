@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { Upload, CloudDownload } from "lucide-react";
+import { Upload, CloudDownload, Sparkles } from "lucide-react";
 import Image from "next/image";
 
 // API endpoint configuration
@@ -17,6 +17,7 @@ export default function HomeComponent() {
     const [fileName, setFileName] = useState<string>("document.docx");
     const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline'>('loading');
     const [warnings, setWarnings] = useState<string[]>([]);
+    const [useLLM, setUseLLM] = useState<boolean>(true);
     
     // Metadata state
     const [title, setTitle] = useState<string>("");
@@ -69,6 +70,10 @@ export default function HomeComponent() {
             formData.append('institution', institution || "Название учебного заведения");
             formData.append('city', city || "Город");
             formData.append('year', year || "2023");
+            
+            // Set parameters for ML and LLM usage
+            formData.append('use_ml', 'true'); // Always use ML for section detection
+            formData.append('use_llm', String(useLLM)); // Control smart placeholder generation based on toggle
 
             const response = await fetch(`${API_BASE_URL}/api/format`, {
                 method: 'POST',
@@ -192,6 +197,10 @@ export default function HomeComponent() {
         }
     };
 
+    const toggleLLM = () => {
+        setUseLLM(!useLLM);
+    };
+
     return (
         <div className="min-h-screen bg-[#808AFC] flex items-center justify-center p-8">
             <div className="bg-white rounded-2xl p-10 max-w-4xl w-full">
@@ -232,6 +241,26 @@ export default function HomeComponent() {
                 </div>
 
                 <div className="mt-8">
+                    {/* Smart Generation Toggle */}
+                    <div className="mb-6">
+                        <button 
+                            onClick={toggleLLM}
+                            className={`flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+                                useLLM 
+                                ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                        >
+                            <Sparkles className={`w-4 h-4 mr-2 ${useLLM ? 'text-yellow-300' : 'text-gray-500'}`} />
+                            {useLLM ? 'Умное заполнение: Вкл' : 'Умное заполнение: Выкл'}
+                        </button>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {useLLM 
+                             ? 'ИИ будет использован для создания контекстных заполнителей для отсутствующих разделов.' 
+                             : 'Будут использоваться стандартные заполнители для отсутствующих разделов.'}
+                        </p>
+                    </div>
+
                     {/* Metadata Section - Moved above file upload */}
                     <div className="mb-6">
                         <h3 className="text-sm font-semibold text-gray-800 mb-4">МЕТАДАННЫЕ ДОКУМЕНТА</h3>
