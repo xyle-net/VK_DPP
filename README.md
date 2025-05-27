@@ -1,65 +1,103 @@
-# GOST Formatter Integration
+# Команда X-NET
 
-This project integrates a GOST document formatter API with a Java backend service.
+## Проект: Нейросеть для оформления текстов работ по ГОСТу
 
-## Getting Started
+### О проекте
 
-### Environment Setup
+Данный проект представляет собой микросервисное веб-приложение для автоматического оформления текстовых документов согласно стандартам ГОСТ. Сервис использует комбинацию алгоритмов машинного обучения и правил форматирования для преобразования обычных текстовых файлов в документы, отформатированные по ГОСТу, с корректным оформлением заголовков, содержания, списков литературы и других элементов документа.
 
-Before starting the application, you need to set up environment variables:
+### Функциональные возможности
 
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
+- Загрузка текстовых документов через веб-интерфейс
+- Автоматическое определение структуры документа (заголовки, подзаголовки, списки и т.д.)
+- Форматирование документа согласно ГОСТ:
+  - Создание титульного листа
+  - Автоматическая генерация оглавления
+  - Корректное форматирование заголовков и текста
+  - Оформление библиографии по стандарту
+  - Нумерация страниц
+- Выгрузка готового документа в формате DOCX
+- Возможность настройки параметров форматирования
+
+### Архитектура проекта
+
+Проект построен на основе микросервисной архитектуры:
+
+1. **Frontend** - клиентское приложение на Next.js
+2. **Java Backend** - состоит из двух сервисов:
+   - Auth Service - аутентификация и авторизация пользователей
+   - Doc Service - управление документами и метаданными
+3. **GOST Formatter API** - Python-сервис для обработки и форматирования документов
+4. **Kafka** - для асинхронного взаимодействия между сервисами
+5. **MinIO** - хранилище объектов для документов
+6. **PostgreSQL** - базы данных для хранения информации о пользователях и документах
+
+### Технологический стек
+
+- **Frontend**: Next.js, React, TypeScript
+- **Backend**: Java Spring Boot, Python Flask
+- **Хранение данных**: PostgreSQL, MinIO
+- **Очереди сообщений**: Kafka
+- **Контейнеризация**: Docker, Docker Compose
+- **Машинное обучение**: PyTorch (для классификации структуры документа)
+
+### Запуск проекта
+
+#### Предварительные требования
+
+- Docker и Docker Compose
+- Git
+
+#### Шаги по установке
+
+1. Клонировать репозиторий:
+   ```
+   git clone [URL репозитория]
+   cd [название репозитория]
    ```
 
-2. Edit the `.env` file and replace the placeholder values with your actual credentials:
+2. Создать файл `.env` в корневой директории проекта со следующими переменными:
    ```
-   # Database credentials
-   POSTGRES_AUTH_PASSWORD=your_secure_password
-   POSTGRES_DOC_PASSWORD=your_secure_password
-
-   # MinIO credentials
-   MINIO_ROOT_USER=your_minio_username
-   MINIO_ROOT_PASSWORD=your_secure_minio_password
+   POSTGRES_AUTH_PASSWORD=ваш_пароль
+   POSTGRES_DOC_PASSWORD=ваш_пароль
+   MINIO_ROOT_USER=ваш_пользователь
+   MINIO_ROOT_PASSWORD=ваш_пароль
+   FLASK_APP=api.py
+   FLASK_ENV=production
+   OPENAI_API_KEY=ваш_ключ_api
+   LLM_API_URL=https://api.openai.com/v1/chat/completions
+   LLM_MODEL_NAME=gpt-3.5-turbo
    ```
 
-### Running the Application
+3. Запустить контейнеры:
+   ```
+   docker-compose up -d
+   ```
 
-Start all services using Docker Compose:
+4. Приложение будет доступно по адресу: `http://localhost:3000`
 
-```bash
-docker-compose up -d
-```
+### Использование
 
-To rebuild specific services:
+1. Откройте веб-интерфейс по адресу `http://localhost:3000`
+2. Зарегистрируйтесь или войдите в систему
+3. Загрузите текстовый файл, который необходимо отформатировать
+4. Укажите метаданные документа (название, автор, институт и т.д.)
+5. Запустите процесс форматирования
+6. Скачайте готовый документ в формате DOCX
 
-```bash
-docker-compose build gost-formatter-api gost-kafka-listener
-docker-compose up -d
-```
+### Команда разработчиков
 
-## Architecture
+- **Михайловская Мария Александровна**
+- **Соловьева Надежда Сергеевна**
+- **Маркин Роман Владимирович**
+- **Жданова Елизавета Таймурасовна**
+- **Бокарев Никита Александрович**
+- **Ефременко Кирилл Андреевич**
+- **Нургалиев Даниэль Ильдарович**
+- **Мамонтов Никита Андреевич**
+- **Федорова Екатерина Васильевна**
+- **Яметдинов Максим Русланович**
 
-The application consists of:
+### Документация
 
-- **Java Auth Service**: User authentication
-- **Java Doc Service**: Document management
-- **GOST Formatter API**: Formats documents according to GOST standards
-- **Kafka**: Message broker for service communication
-- **MinIO**: S3-compatible object storage for document files
-- **PostgreSQL**: Database for user and document metadata
-
-## API Endpoints
-
-The GOST Formatter API is available at:
-
-- `POST http://localhost:5000/api/format` - Format a document
-- `GET http://localhost:5000/api/health` - Health check
-- `GET http://localhost:5000/api/info` - API documentation
-
-## Security Notes
-
-- Never commit the `.env` file to version control
-- Always use environment variables for credentials
-- For production deployment, consider using a secrets management solution 
+[Ссылка на паспорт проекта](https://docs.google.com/document/d/1nA2f-hRUEZueK7Li4eRWgb3SEfK7WIBUUKadeRu4m5Q/edit?tab=t.0) 
